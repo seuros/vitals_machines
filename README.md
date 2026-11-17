@@ -2,17 +2,20 @@
 
 > **AMS Santorio**, NCC-4238, *Santorio*-class vitals tender.
 
-Sick-bay flight manual: take the host's vitals, and do not call it recovered
-until they have held.
+Sick-bay flight manual: take the host's vitals, and do not call a warning over
+until the vitals have held.
 
 Santorio Santorio put a scale on the thermometer and a pendulum to the pulse,
 then weighed himself for thirty years before drawing conclusions. The tender
-does the same for a machine: measure what is there, call missing readings
-unknown, and wait for stability before declaring a warning over.
+keeps the same discipline for a machine: measure what is there, call a missing
+reading unknown, and wait for stability before declaring recovery. The fleet
+needed it because the `ChaOS` kernel carried all of this inline. A warning that
+clears the moment a reading dips under its threshold flaps, and a host that
+slept through the dip must not wake up recovered.
 
-The core is an allocation-free `no_std` recovery machine with no `unsafe`. It
-reads no clock and does no I/O. The `probe` feature adds the host probes. This
-is a Rust-only crate with no Ruby gem.
+Allocation-free `no_std`, no `unsafe` in the core, no clock, no I/O. The host
+probes sit behind the `probe` feature. This is a Rust-only crate with no Ruby
+gem.
 
 ```rust
 use core::time::Duration;
@@ -44,8 +47,8 @@ assert_eq!(recovery.observe(s(1), Sample::Warning), Err(Refusal::TimeRegression)
   percentage. The caller's policy turns fresh readings into a `Sample`:
   `Warning` (a threshold fires), `Short` (nothing fires, but an outstanding
   condition is still inside its recovery margin), `Headroom { required }`
-  (every outstanding condition is past its margin), `Unavailable` or `Blocked`.
-  Per-condition thresholds with a recovery margin are
+  (every outstanding condition is past its margin), `Unavailable` or
+  `Blocked`. Per-condition thresholds with a recovery margin are
   `feedback_machines::Hysteresis`.
 - **Absence of a warning is not recovery.** An episode opens on the first
   `Warning` and is `Recovered` only after `Headroom` held continuously for
@@ -56,56 +59,53 @@ assert_eq!(recovery.observe(s(1), Sample::Warning), Err(Refusal::TimeRegression)
   clock that keeps counting through suspend (`CLOCK_BOOTTIME`,
   `mach_continuous_time`), or a sleep looks like no gap at all.
 - **Episodes.** Once an episode has recovered, the next `Warning` opens a new
-  one (`Observed::opened`). A lapse without a warning (`Short`, `Unavailable`,
-  `Blocked`, a gap) leaves `Recovered` but stays in the same episode. Episode ids come from a
-  `periscope_machines::Issuer` (`Recovery::with_scope`); tie per-episode work
-  such as a checkpoint to its `Episode` so a slow write cannot land on a newer
-  one.
+  one (`Observed::opened`). A lapse without a warning (`Short`,
+  `Unavailable`, `Blocked`, a gap) leaves `Recovered` but stays in the same
+  episode. Episode ids come from a `periscope_machines::Issuer`
+  (`Recovery::with_scope`); tie per-episode work such as a checkpoint to its
+  `Episode` so a slow write cannot land on a newer one.
 - **Time.** `now` is a `Duration` since an epoch the caller picks.
   Observations inside an episode, and the warning that opens one, record it;
   with no episode open, other samples answer `Healthy` and record nothing.
   `required` and `max_gap` are spans.
 - **Refusals change nothing.** `TimeRegression` (`now` before the latest
-  recorded observation) and `Exhausted` (no episode id left). The machine compares equal to a clone
-  taken before the call.
+  recorded observation) and `Exhausted` (no episode id left). The machine
+  compares equal to a clone taken before the call.
 - **Exhaustive.** `Phase`, `Sample` and `Refusal` are exhaustive enums; a new
   variant is a breaking change.
 
-## Probes (`probe` feature)
+## Probes
 
-Fresh, best-effort, synchronous observations on Linux, macOS and FreeBSD. No
-thresholds, notifications, polling or configuration: probes measure, the
-caller decides. Use a blocking worker in async code. Timestamps mark
-collection start, not an atomic observation.
-
-`inspect_machine()` answers form factor, displays, session hints, execution
-environment, power and thermals. `inspect_storage(&[StorageTarget])` probes
-only the paths you pass. `inspect_indexing(workspace)` reports Spotlight and
-known indexer processes.
+The `probe` feature adds fresh, best-effort, synchronous observations on
+Linux, macOS and FreeBSD. `inspect_machine()` answers form factor, displays,
+session hints, execution environment, power and thermals.
+`inspect_storage(&[StorageTarget])` probes only the paths it is given.
+`inspect_indexing(workspace)` reports Spotlight and known indexer processes.
+Run them on a blocking worker in async code; a timestamp marks the start of
+collection, not an atomic observation.
 
 - **Independent facts.** Chassis, displays, session and power source are
-  separate. A headless laptop on external power is valid. A missing battery
-  does not imply a desktop. Known containers and jails do not report the
-  host's chassis, displays, batteries or thermals as their own.
+  separate. A headless laptop on external power is valid, and a missing
+  battery does not imply a desktop. Known containers and jails do not report
+  the host's chassis, displays, batteries or thermals as their own.
 - **Unknown is not false.** Missing, faulted, unreadable or implausible values
   are unknown, never cool, charged or empty. `PowerInfo::on_battery_power()`
-  is false for a dead battery on external power. Multiple batteries stay
-  separate; no averaged system percentage is invented.
+  is false for a dead battery on external power. Batteries stay separate; no
+  averaged system percentage is invented.
 - **Thermals.** The strongest recognized OS thermal state plus CPU-associated
   channels, each with its OS identifier, label, source, kind, value and the
   driver's critical limit. AMD Tctl is `control`, not die temperature.
-  Channels are not averaged or deduplicated. macOS reports OS thermal pressure
-  (IOPM and `NSProcessInfo`, raw values in `thermal.macos`), not Celsius; IOPM
-  levels are not ordered numerically (0 normal, 100 danger, 10 crisis).
+  Channels are not averaged or deduplicated. macOS reports thermal pressure
+  (IOPM and `NSProcessInfo`, raw values in `thermal.macos`), not Celsius;
+  IOPM levels are not ordered numerically (0 normal, 100 danger, 10 crisis).
 - **Task-scoped storage.** Each path resolves through symlinks to its
-  filesystem; a future output probes its nearest existing ancestor. Paths
-  sharing filesystem identity and read-only view are grouped. No free space is
-  summed across disks. Probe failures stay separate from zero free space.
-  Paths must be absolute; dangling symlinks and ambiguous `..` paths are
-  errors. `backing: other` is not a durability guarantee.
+  filesystem, and a future output probes its nearest existing ancestor. Paths
+  sharing a filesystem and read-only view are grouped, free space is never
+  summed across disks, and a probe failure is not zero free space. Paths must
+  be absolute. `backing: other` is not a durability guarantee.
 - **Commands.** Absolute executable paths, the C locale, no shell, no sudo,
-  bounded output, a one-second deadline each; timed-out children are killed
-  and reaped. No settings, services or indexes are changed.
+  bounded output and a one-second deadline each; a timed-out child is killed
+  and reaped.
 
 | | Linux | macOS | FreeBSD |
 |---|---|---|---|
@@ -117,9 +117,14 @@ known indexer processes.
 | Storage | `statvfs` / `statfs` | `statvfs` / `statfs` | `statvfs` / `statfs` |
 | Indexing | Tracker/LocalSearch, Baloo, `updatedb` processes | `mdutil -s` on the workspace volume, Spotlight processes | Unsupported |
 
-Detection is best-effort, not proof that every sensor was enumerated or that
-cooling is safe. No private macOS interfaces, privileged subprocesses or
-driver loading are used.
+## Not Included
 
-Extracted from the `chaos-machine`
-crate and the recovery policy of the `ChaOS` kernel.
+No thresholds, notifications, polling, configuration or remediation: probes
+measure, the caller decides, and the recovery machine only says where an
+episode stands. No Windows. No private macOS interfaces, privileged
+subprocesses or driver loading. Detection is best-effort, not proof that every
+sensor was enumerated or that cooling is safe.
+
+## License
+
+MIT
