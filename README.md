@@ -2,8 +2,8 @@
 
 > **AMS Santorio**, NCC-4238, *Santorio*-class vitals tender.
 
-Sick-bay flight manual: take the host's vitals, and do not call a warning over
-until the vitals have held.
+Engine-room flight manual: read the hull's vitals, and hold the all-clear until
+they have stayed steady.
 
 Santorio Santorio put a scale on the thermometer and a pendulum to the pulse,
 then weighed himself for thirty years before drawing conclusions. The crate
