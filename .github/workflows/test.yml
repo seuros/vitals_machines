@@ -1,0 +1,105 @@
+name: Test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Dictator
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: seuros/setup-dictator@master
+        with:
+          version: '0.28.1'
+      - run: dictator lint --format github .
+
+  crates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+        with:
+          mise_toml: |
+            [tools]
+            rust = { version = "1.99", components = "clippy,rustfmt" }
+
+      - name: Reject path-sourced sibling crates in Cargo.lock
+        run: |
+          ruby -rjson -e '
+            own = JSON.parse(`cargo metadata --no-deps --format-version 1`).fetch("packages").map { |pkg| pkg["name"] }
+            stray = File.read("Cargo.lock").split("[[package]]").filter_map do |pkg|
+              name = pkg[/^name = "([^"]+)"/, 1]
+              next unless name && name.end_with?("-machines") && !own.include?(name)
+              name unless pkg.match?(/^source = "registry/)
+            end
+            abort "Cargo.lock pins sibling crates without a registry source: #{stray.join(", ")}" unless stray.empty?
+          '
+      - name: Lint the crate
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Lint the probes
+        run: cargo clippy --features probe --all-targets -- -D warnings
+
+      - name: Test the crate
+        run: cargo test --features probe
+
+      - name: Run doc tests
+        run: cargo test --doc
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+  bare-metal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+        with:
+          mise_toml: |
+            [tools]
+            rust = { version = "1.99", components = "clippy", targets = "thumbv7em-none-eabihf" }
+
+      - name: Build and lint on bare metal
+        run: |
+          cargo build --target thumbv7em-none-eabihf
+          cargo clippy --target thumbv7em-none-eabihf -- -D warnings
+
+  probes:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+        with:
+          mise_toml: |
+            [tools]
+            rust = { version = "1.99", components = "clippy" }
+
+      - name: Lint and test the probes
+        run: |
+          cargo clippy --features probe --all-targets -- -D warnings
+          cargo test --features probe
+
+  freebsd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+        with:
+          mise_toml: |
+            [tools]
+            rust = { version = "1.99", components = "clippy", targets = "x86_64-unknown-freebsd" }
+
+      - name: Lint the probes for FreeBSD
+        run: cargo clippy --features probe --all-targets --target x86_64-unknown-freebsd -- -D warnings
