@@ -6,16 +6,21 @@ Sick-bay flight manual: take the host's vitals, and do not call a warning over
 until the vitals have held.
 
 Santorio Santorio put a scale on the thermometer and a pendulum to the pulse,
-then weighed himself for thirty years before drawing conclusions. The tender
+then weighed himself for thirty years before drawing conclusions. The crate
 keeps the same discipline for a machine: measure what is there, call a missing
-reading unknown, and wait for stability before declaring recovery. The fleet
-needed it because the `ChaOS` kernel carried all of this inline. A warning that
-clears the moment a reading dips under its threshold flaps, and a host that
-slept through the dip must not wake up recovered.
+reading unknown, and wait for stability before declaring recovery.
+
+Anything that runs heavy work on someone's machine (a build farm agent, a
+backup job, an indexer, a local model) should back off when the host runs hot,
+drains its battery or fills its disk. Pausing is easy. Knowing when to resume
+is not: resume the moment a reading crosses back over its threshold and the
+work flaps on and off; trust a laptop that slept through the dip and it wakes up
+"recovered" with nobody having watched it cool. This crate takes the readings,
+and keeps the books on when a warning is really over. What counts as a warning
+stays yours.
 
 Allocation-free `no_std`, no `unsafe` in the core, no clock, no I/O. The host
-probes sit behind the `probe` feature. This is a Rust-only crate with no Ruby
-gem.
+probes sit behind the `probe` feature. Rust only.
 
 ```rust
 use core::time::Duration;
@@ -40,6 +45,57 @@ assert_eq!(phase(&mut recovery, 260), Ok(Phase::Recovered));
 
 assert_eq!(recovery.observe(s(1), Sample::Warning), Err(Refusal::TimeRegression));
 ```
+
+## Putting it together
+
+Probe, turn the readings into a `Sample` with your own thresholds, and feed the
+recovery machine. Here heavy work pauses under thermal pressure or below 10%
+battery, and resumes once the host has been cool and above 20% for five
+minutes.
+
+```rust,no_run
+# #[cfg(feature = "probe")]
+# fn main() {
+use std::time::{Duration, Instant};
+use vitals_machines::probe::{BatteryKind, MachineSnapshot, ThermalState, inspect_machine};
+use vitals_machines::{Phase, Recovery, Sample};
+
+fn sample(vitals: &MachineSnapshot) -> Sample {
+    if matches!(vitals.thermal.state, ThermalState::Warning | ThermalState::Critical) {
+        return Sample::Warning;
+    }
+    let charge = vitals.power.batteries.iter().flatten()
+        .filter(|battery| battery.kind == BatteryKind::System)
+        .filter_map(|battery| battery.charge_percent)
+        .min();
+    match (vitals.power.on_battery_power(), charge) {
+        (Some(false), _) => Sample::Headroom { required: Duration::from_secs(300) },
+        (Some(true), Some(charge)) if charge < 10 => Sample::Warning,
+        (Some(true), Some(charge)) if charge < 20 => Sample::Short,
+        (Some(true), Some(_)) => Sample::Headroom { required: Duration::from_secs(300) },
+        _ => Sample::Unavailable,
+    }
+}
+
+let start = Instant::now();
+let mut recovery = Recovery::new(Duration::from_secs(60));
+loop {
+    let vitals = inspect_machine();
+    let now = start.elapsed();
+    if let Ok(observed) = recovery.observe(now, sample(&vitals)) {
+        let allowed = matches!(observed.phase, Phase::Healthy | Phase::Recovered);
+        println!("heavy work allowed: {allowed}"); // pause or resume your workers
+    }
+    std::thread::sleep(Duration::from_secs(30));
+}
+# }
+# #[cfg(not(feature = "probe"))]
+# fn main() {}
+```
+
+`Instant` stops while the host sleeps on some platforms. If a suspend must
+count as a gap, read a clock that keeps counting (`CLOCK_BOOTTIME` on Linux,
+`mach_continuous_time` on macOS).
 
 ## Contract
 
