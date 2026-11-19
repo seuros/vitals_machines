@@ -6,9 +6,12 @@ use serde::Serialize;
 pub enum PowerSource {
     /// Mains or an adapter, even if a battery is also discharging.
     External,
-    /// A system battery is discharging with no online supply reported.
+    /// A system battery is the supply. Linux and FreeBSD report this when a
+    /// battery discharges with no online supply; macOS when `pmset` names
+    /// battery power as the source, whatever the battery itself reports.
     Battery,
-    /// A UPS battery is discharging with no online supply reported.
+    /// A UPS battery is the supply, decided as for [`PowerSource::Battery`]
+    /// (on macOS, `pmset` naming UPS power).
     Ups,
     /// Not reported or contradictory; not evidence of external power.
     #[default]
@@ -49,7 +52,9 @@ pub struct BatteryInfo {
     pub name: String,
     /// Whether it backs this machine or a UPS.
     pub kind: BatteryKind,
-    /// Whether a battery is installed in the slot; `None` when not reported.
+    /// Whether a battery is installed in the slot. Inferred `true` when the OS
+    /// omits presence but reports live battery data (Linux) or does not say
+    /// `present: false` (macOS); `None` only when nothing implies either.
     pub present: Option<bool>,
     /// Percentage 0..=100, or unknown. Never a fabricated/clamped percentage.
     pub charge_percent: Option<u8>,

@@ -14,7 +14,8 @@ pub mod probe;
 /// Where a recovery episode stands. Absence of a warning is not recovery.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum Phase {
-    /// No episode has opened: no warning was ever sampled.
+    /// No episode is open: no warning was sampled yet, or none since a
+    /// [`Recovery::reset`].
     #[default]
     Healthy,
     /// An episode is open and the vitals have not cleared their recovery margin.
