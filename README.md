@@ -201,8 +201,36 @@ Observations inside an episode, and the warning that opens one, record `now`. Wi
 | `stable_for()` | how long headroom has held, `None` with no window running | never: a query | never refuses |
 | `last_observed()`, `max_gap()` | the latest recorded instant, the configured gap | never: a query | never refuses |
 | `reset()` | nothing: back to `Healthy` with no episode and no recorded instant; the next warning gets a fresh id | clears it | never refuses |
+| `last_issued()` | the episode issued last, current or not | never: a query | never refuses |
 
 `Exhausted` means the recovery's scope has issued its last episode id.
+
+### Constructors
+
+| Constructor | Builds |
+| --- | --- |
+| `Recovery::new(max_gap)` | scope zero, nothing issued |
+| `Recovery::with_scope(scope, max_gap)` | `scope`, nothing issued |
+| `Recovery::restored(scope, max_gap, last)` | `scope`, issuing after the raw id `last` (from `last_issued()`); `None` when `last` is not an id of `scope` |
+
+Each starts `Healthy` with nothing observed. Persist `last_issued().map(Episode::raw)` and restore from it so a restart never reissues an episode:
+
+```rust
+use core::time::Duration;
+use vitals_machines::{Episode, Recovery, Sample};
+
+let s = Duration::from_secs;
+let mut recovery = Recovery::with_scope(7, s(60));
+recovery.observe(s(0), Sample::Warning).ok();
+let saved = recovery.last_issued().map(Episode::raw);
+
+let Some(mut resumed) = Recovery::restored(7, s(60), saved) else {
+    panic!("saved is an id of scope 7");
+};
+resumed.observe(s(0), Sample::Warning).ok();
+assert!(resumed.episode().map(Episode::raw) > saved);
+assert_eq!(Recovery::restored(8, s(60), saved), None);
+```
 
 ### Taking vitals
 

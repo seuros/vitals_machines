@@ -122,6 +122,17 @@ impl Recovery {
         }
     }
 
+    /// As [`Recovery::with_scope`], issuing after raw `last`; `None` if not an id of `scope`.
+    #[must_use]
+    pub const fn restored(scope: u16, max_gap: Duration, last: Option<u64>) -> Option<Self> {
+        let Some(episodes) = Issuer::restored(scope, last) else {
+            return None;
+        };
+        let mut recovery = Self::with_scope(scope, max_gap);
+        recovery.episodes = episodes;
+        Some(recovery)
+    }
+
     /// Fold one sample taken at `now` into the episode.
     ///
     /// Observations inside an episode, and the warning that opens one, record
@@ -232,6 +243,12 @@ impl Recovery {
         if matches!(self.phase, Phase::Healthy) {
             return None;
         }
+        self.last_issued()
+    }
+
+    /// The episode issued last, current or not.
+    #[must_use]
+    pub const fn last_issued(&self) -> Option<Episode> {
         match self.episodes.last() {
             Some(raw) => Some(Episode(raw)),
             None => None,

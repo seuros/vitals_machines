@@ -1,4 +1,5 @@
 use super::*;
+use periscope_machines::SEQUENCE_MAX;
 
 fn s(secs: u64) -> Duration {
     Duration::from_secs(secs)
@@ -83,15 +84,68 @@ fn refusals_change_nothing() {
     );
     assert_eq!(machine, before);
 
-    phase(&mut machine, 30, headroom(0));
-    machine.episodes = Issuer::restored(0, Some(periscope_machines::SEQUENCE_MAX))
-        .unwrap_or_else(|| panic!("a spent issuer is reachable"));
+    // One id left: the first warning takes it, the renewed one is refused.
+    let mut machine = restored(5, SEQUENCE_MAX - 1);
+    phase(&mut machine, 30, Sample::Warning);
+    phase(&mut machine, 31, headroom(0));
     let before = machine.clone();
     assert_eq!(
-        machine.observe(s(31), Sample::Warning),
+        machine.observe(s(32), Sample::Warning),
         Err(Refusal::Exhausted)
     );
     assert_eq!(machine, before);
+}
+
+fn restored(scope: u16, sequence: u64) -> Recovery {
+    let last = periscope_machines::scoped(scope, sequence);
+    Recovery::restored(scope, s(60), Some(last))
+        .unwrap_or_else(|| panic!("{last:#x} is an id of scope {scope}"))
+}
+
+#[test]
+fn a_spent_recovery_refuses_the_warning_that_would_open_an_episode() {
+    let mut machine = restored(5, SEQUENCE_MAX);
+    let before = machine.clone();
+    assert_eq!(
+        machine.observe(s(10), Sample::Warning),
+        Err(Refusal::Exhausted)
+    );
+    assert_eq!(machine, before);
+    assert_eq!(machine.episode(), None);
+    // Without an episode the rest still answers Healthy.
+    assert_eq!(phase(&mut machine, 11, headroom(0)), Phase::Healthy);
+}
+
+#[test]
+fn restored_resumes_after_the_last_issued_episode() {
+    let mut machine = Recovery::with_scope(9, s(60));
+    phase(&mut machine, 0, Sample::Warning);
+    machine.reset();
+    let last = machine.last_issued().map(Episode::raw);
+    assert!(last.is_some());
+    let mut resumed = Recovery::restored(9, s(60), last)
+        .unwrap_or_else(|| panic!("the last issued id restores its scope"));
+    assert_eq!(resumed, machine);
+    assert_eq!(resumed.phase(), Phase::Healthy);
+    assert_eq!(resumed.last_observed(), None);
+    phase(&mut resumed, 0, Sample::Warning);
+    let next = resumed.episode().map(Episode::raw);
+    assert!(next > last, "{next:?} must come after {last:?}");
+    assert_eq!(
+        Recovery::restored(9, s(60), None),
+        Some(Recovery::with_scope(9, s(60)))
+    );
+}
+
+#[test]
+fn restored_refuses_ids_of_another_scope() {
+    let foreign = periscope_machines::scoped(4, 1);
+    assert_eq!(Recovery::restored(9, s(60), Some(foreign)), None);
+    assert_eq!(Recovery::restored(0, s(60), Some(0)), None);
+    assert_eq!(
+        Recovery::restored(9, s(60), Some(foreign & SEQUENCE_MAX)),
+        None
+    );
 }
 
 #[test]
