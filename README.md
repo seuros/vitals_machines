@@ -200,6 +200,7 @@ Observations inside an episode, and the warning that opens one, record `now`. Wi
 | `phase()`, `episode()`, `unresolved()` | the current phase, episode, and whether one is open and not recovered | never: a query | never refuses |
 | `stable_for()` | how long headroom has held, `None` with no window running | never: a query | never refuses |
 | `last_observed()`, `max_gap()` | the latest recorded instant, the configured gap | never: a query | never refuses |
+| `reset()` | nothing: back to `Healthy` with no episode and no recorded instant; the next warning gets a fresh id | clears it | never refuses |
 
 `Exhausted` means the recovery's scope has issued its last episode id.
 

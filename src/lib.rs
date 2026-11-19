@@ -201,15 +201,36 @@ impl Recovery {
         })
     }
 
+    /// Forget the open episode and the observed time, as if new, but keep
+    /// issuing from where the issuer left off.
+    ///
+    /// For when what is being watched changes (another workspace, another
+    /// config): the old episode is closed for good, and a later warning opens
+    /// one with a fresh id, so work still carrying a pre-reset [`Episode`]
+    /// never matches it, even if the old context comes back. Any `now` is
+    /// accepted after a reset.
+    pub const fn reset(&mut self) {
+        self.phase = Phase::Healthy;
+        self.window = Dwell::new(self.window.max_gap());
+        self.last = None;
+        self.recovered_episode = false;
+    }
+
     /// The current phase.
     #[must_use]
     pub const fn phase(&self) -> Phase {
         self.phase
     }
 
-    /// The current episode, `None` before the first warning.
+    /// The current episode, `None` before the first warning and after a
+    /// [`Recovery::reset`] until the next one.
     #[must_use]
     pub const fn episode(&self) -> Option<Episode> {
+        // Healthy only before the first warning or after a reset; either way
+        // no episode is current, whatever the issuer handed out last.
+        if matches!(self.phase, Phase::Healthy) {
+            return None;
+        }
         match self.episodes.last() {
             Some(raw) => Some(Episode(raw)),
             None => None,
@@ -247,7 +268,8 @@ impl Recovery {
 pub struct Observed {
     /// The phase after this observation.
     pub phase: Phase,
-    /// The current episode; `None` before the first warning.
+    /// The current episode; `None` before the first warning and after a
+    /// [`Recovery::reset`] until the next one.
     pub episode: Option<Episode>,
     /// Whether this observation opened [`Observed::episode`]. The caller
     /// resets whatever it tracks per episode (outstanding conditions).

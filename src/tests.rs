@@ -93,3 +93,54 @@ fn refusals_change_nothing() {
     );
     assert_eq!(machine, before);
 }
+
+#[test]
+fn reset_closes_the_episode_and_forgets_time() {
+    let mut machine = Recovery::new(s(60));
+    phase(&mut machine, 100, Sample::Warning);
+    phase(&mut machine, 110, headroom(60));
+    machine.reset();
+    assert_eq!(machine.phase(), Phase::Healthy);
+    assert_eq!(machine.episode(), None);
+    assert_eq!(machine.stable_for(), None);
+    assert_eq!(machine.last_observed(), None);
+    assert_eq!(machine.max_gap(), s(60));
+    // No episode open: anything but a warning answers Healthy.
+    assert_eq!(
+        machine.observe(s(120), headroom(0)),
+        Ok(Observed {
+            phase: Phase::Healthy,
+            episode: None,
+            opened: false,
+        })
+    );
+}
+
+#[test]
+fn reset_accepts_any_now() {
+    let mut machine = Recovery::new(s(60));
+    phase(&mut machine, 100, Sample::Warning);
+    assert_eq!(
+        machine.observe(s(5), Sample::Short),
+        Err(Refusal::TimeRegression)
+    );
+    machine.reset();
+    assert_eq!(phase(&mut machine, 5, Sample::Warning), Phase::Warning);
+    assert_eq!(machine.last_observed(), Some(s(5)));
+}
+
+#[test]
+fn a_warning_after_reset_never_reuses_an_episode() {
+    let mut machine = Recovery::with_scope(3, s(60));
+    phase(&mut machine, 0, Sample::Warning);
+    let before = machine.episode().map(Episode::raw);
+    machine.reset();
+    let opened = machine.observe(s(0), Sample::Warning);
+    assert_eq!(
+        opened.map(|o| (o.phase, o.opened)),
+        Ok((Phase::Warning, true))
+    );
+    let after = machine.episode().map(Episode::raw);
+    assert!(after > before, "{after:?} must come after {before:?}");
+    assert_eq!(after.map(|raw| raw >> 48), Some(3));
+}
