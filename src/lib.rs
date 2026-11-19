@@ -8,7 +8,7 @@ use feedback_machines::{Dwell, Hold};
 use periscope_machines::Issuer;
 
 #[cfg(feature = "probe")]
-#[allow(unsafe_code, missing_docs)]
+#[allow(unsafe_code)]
 pub mod probe;
 
 /// Where a recovery episode stands. Absence of a warning is not recovery.

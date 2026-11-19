@@ -2,25 +2,36 @@ use crate::probe::{BatteryKind, PowerInfo};
 use serde::Serialize;
 use std::io::IsTerminal;
 
+/// Chassis class. Says nothing about displays or the current power source.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FormFactor {
+    /// Portable machine with an internal battery.
     Laptop,
+    /// Stationary machine, including all-in-ones and minis.
     Desktop,
+    /// Rack, blade, or other server chassis.
     Server,
+    /// Tablet or detachable.
     Tablet,
+    /// A recognized chassis that fits none of the above.
     Other,
+    /// No evidence, or evidence that names no chassis. Not a desktop.
     #[default]
     Unknown,
 }
 
+/// What [`FormFactor`] was decided from, strongest first.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FormFactorEvidence {
+    /// SMBIOS/DMI chassis type.
     Firmware,
+    /// A known model prefix such as `MacBook` or `Macmini`.
     ModelIdentifier,
     /// A heuristic, never used to infer desktop from an absent battery.
     SystemBattery,
+    /// Nothing to go on; the form factor is `Unknown`.
     #[default]
     Unknown,
 }
@@ -29,10 +40,12 @@ pub enum FormFactorEvidence {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DisplayState {
+    /// At least one display, physical or virtual, is attached.
     Connected,
     /// Headless according to the available display interface. Virtual displays
     /// count as connected; an inaccessible interface is `Unknown`, not headless.
     NoneDetected,
+    /// The display interface could not be queried.
     #[default]
     Unknown,
 }
@@ -41,10 +54,14 @@ pub enum DisplayState {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecutionEnvironment {
+    /// A container or jail. Host chassis, display, power, and thermal facts
+    /// are left unknown rather than read through to the host.
     Container,
+    /// A hypervisor guest. Reported facts describe the virtual machine.
     VirtualMachine,
     /// No virtualization/container marker found; not proof of bare metal.
     NoneDetected,
+    /// The platform's guest detection gave no answer.
     #[default]
     Unknown,
 }
@@ -52,8 +69,11 @@ pub enum ExecutionEnvironment {
 /// Session hints do not establish whether the machine itself is headless.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct SessionContext {
+    /// `SSH_CONNECTION`, `SSH_CLIENT`, or `SSH_TTY` is set in this process.
     pub ssh: bool,
+    /// `WAYLAND_DISPLAY` or `DISPLAY` is set in this process.
     pub graphical_hint: bool,
+    /// Standard input is a terminal.
     pub terminal_attached: bool,
 }
 
@@ -76,13 +96,21 @@ fn env_non_empty(key: &str) -> bool {
     std::env::var(key).is_ok_and(|value| !value.trim().is_empty())
 }
 
+/// What kind of machine this is and how this process is attached to it.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct MachineProfile {
+    /// Chassis class.
     pub form_factor: FormFactor,
+    /// What `form_factor` was decided from.
     pub form_factor_evidence: FormFactorEvidence,
+    /// Vendor model: macOS `hw.model`, Linux DMI product name. `None` when
+    /// unreadable, in a container, and always on FreeBSD.
     pub model: Option<String>,
+    /// Whether displays are attached.
     pub displays: DisplayState,
+    /// Container, virtual machine, or neither detected.
     pub execution_environment: ExecutionEnvironment,
+    /// Session hints from this process's environment.
     pub session: SessionContext,
 }
 

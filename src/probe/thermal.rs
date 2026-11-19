@@ -11,24 +11,33 @@ pub enum ThermalState {
     Unknown,
     /// The OS reports no thermal warning, not a guarantee about every component.
     Normal,
+    /// The OS reports elevated thermal pressure (macOS danger/serious).
     Warning,
+    /// The OS reports critical thermal pressure (macOS crisis/critical).
     Critical,
 }
 
+/// OS interface a temperature channel was read from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TemperatureSource {
+    /// Linux `/sys/class/hwmon`.
     Hwmon,
+    /// Linux `/sys/class/thermal` thermal zone.
     ThermalZone,
+    /// FreeBSD sysctl.
     Sysctl,
 }
 
+/// What a channel's degrees measure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TemperatureKind {
+    /// A physical temperature in Celsius.
     Physical,
     /// A driver-defined control scale, such as AMD Tctl, not die temperature.
     Control,
+    /// The driver does not say which; do not compare against physical limits.
     Unknown,
 }
 
@@ -37,8 +46,12 @@ pub enum TemperatureKind {
 pub struct CpuTemperature {
     /// OS-local sysfs path or sysctl name; not stable across boots/namespaces.
     pub id: String,
+    /// Human-readable channel name (`k10temp: Tctl`, a thermal zone type,
+    /// `CPU 0`); not a stable key.
     pub label: String,
+    /// Interface the channel was read from.
     pub source: TemperatureSource,
+    /// Whether `celsius` is a physical temperature or a control scale.
     pub kind: TemperatureKind,
     /// Celsius, or degree units on a control scale when `kind` is `Control`.
     /// Missing, unreadable, disabled, faulted, or implausible values stay `None`.
@@ -47,8 +60,10 @@ pub struct CpuTemperature {
     pub critical_celsius: Option<f64>,
 }
 
+/// Thermal observations from one sample. Default is everything unknown.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ThermalInfo {
+    /// System-wide OS thermal state; `Unknown` in containers and where unsupported.
     pub state: ThermalState,
     /// Best-effort CPU channels only. Empty means none could be identified,
     /// not a cool CPU or a complete hardware inventory. Channels may overlap.

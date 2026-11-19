@@ -63,11 +63,17 @@ use std::time::SystemTime;
 /// Observations collected starting at `observed_at`, not a health verdict.
 #[derive(Debug, Clone, Serialize)]
 pub struct MachineSnapshot {
+    /// Wall-clock time taken before any probe ran.
     pub observed_at: SystemTime,
+    /// Target OS this binary was built for (`std::env::consts::OS`).
     pub os: &'static str,
+    /// Target architecture this binary was built for (`std::env::consts::ARCH`).
     pub arch: &'static str,
+    /// Chassis, displays, execution environment, and session hints.
     pub profile: MachineProfile,
+    /// Current supply and system/UPS batteries.
     pub power: PowerInfo,
+    /// OS thermal state and CPU temperature channels.
     pub thermal: ThermalInfo,
 }
 

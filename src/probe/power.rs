@@ -1,41 +1,59 @@
 use serde::Serialize;
 
+/// What the machine is running on right now.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PowerSource {
+    /// Mains or an adapter, even if a battery is also discharging.
     External,
+    /// A system battery is discharging with no online supply reported.
     Battery,
+    /// A UPS battery is discharging with no online supply reported.
     Ups,
+    /// Not reported or contradictory; not evidence of external power.
     #[default]
     Unknown,
 }
 
+/// Which supply a battery backs. Peripheral batteries are never reported.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BatteryKind {
+    /// Internal battery that powers this machine.
     System,
+    /// External uninterruptible power supply the OS reports.
     Ups,
 }
 
+/// What the OS says one battery is doing.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BatteryState {
+    /// Taking charge.
     Charging,
+    /// Supplying power.
     Discharging,
+    /// Reported fully charged.
     Full,
+    /// Neither charging nor discharging (charge limit, maintenance, AC hold).
     Idle,
+    /// Not reported or unrecognized.
     #[default]
     Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// One system or UPS battery as the OS reports it.
 pub struct BatteryInfo {
     /// OS supply name, not a hardware serial number.
     pub name: String,
+    /// Whether it backs this machine or a UPS.
     pub kind: BatteryKind,
+    /// Whether a battery is installed in the slot; `None` when not reported.
     pub present: Option<bool>,
     /// Percentage 0..=100, or unknown. Never a fabricated/clamped percentage.
     pub charge_percent: Option<u8>,
+    /// Charging activity, independent of the primary supply.
     pub state: BatteryState,
 }
 
@@ -43,6 +61,7 @@ pub struct BatteryInfo {
 /// is not a battery-powered machine. Peripheral batteries are excluded.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct PowerInfo {
+    /// Primary supply derived from adapter and battery reports.
     pub source: PowerSource,
     /// Adapter presence where reported. Battery activity is separate from the
     /// primary supply: a battery can discharge while the OS reports AC power.

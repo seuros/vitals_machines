@@ -7,25 +7,35 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
 use std::time::SystemTime;
 
+/// What the task uses a path for. A caller label only; it changes no probe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StorageRole {
+    /// Source tree or working directory.
     Workspace,
+    /// Persistent application state.
     State,
+    /// Scratch space.
     Temporary,
+    /// Where results are written; may not exist yet.
     Output,
+    /// Where checkpoints are saved.
     Checkpoint,
 }
 
 /// A path the task actually uses. There are no implicit paths or drive scans.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct StorageTarget {
+    /// What the task uses the path for.
     pub role: StorageRole,
+    /// Absolute path; relative paths are reported as unavailable.
     pub path: PathBuf,
 }
 
+/// A target and the path actually probed for it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ResolvedStorageTarget {
+    /// The target as the caller passed it.
     pub target: StorageTarget,
     /// Canonical existing path used for the probe. For a not-yet-created output,
     /// this is its closest existing ancestor, not necessarily the output itself.
@@ -35,26 +45,37 @@ pub struct ResolvedStorageTarget {
 /// Namespace-local filesystem identity, not a physical SSD or global stable ID.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct FilesystemId {
+    /// `st_dev` of the probed path.
     pub device: u64,
+    /// `f_fsid` from `statvfs`.
     pub filesystem: u64,
 }
 
+/// Whether a filesystem lives in memory, from its type name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FilesystemBacking {
+    /// A known memory filesystem (`tmpfs`, `ramfs`, `mfs`): gone on reboot.
     Memory,
     /// Not a known memory filesystem. Does NOT guarantee persistence: a
     /// temporary directory, container layer, or RAM-backed block device can
     /// still disappear.
     Other,
+    /// The filesystem type could not be read or is not recognized.
     Unknown,
 }
 
+/// One filesystem view seen by one or more targets.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Filesystem {
+    /// Identity used to group targets on the same filesystem.
     pub id: FilesystemId,
+    /// Type name such as `apfs`, `ext`, or `tmpfs`; `None` when unreadable or
+    /// (on Linux) not one of the recognized magic numbers.
     pub filesystem_type: Option<String>,
+    /// Whether the filesystem is known to live in memory.
     pub backing: FilesystemBacking,
+    /// Size in bytes; zero on some pseudo-filesystems.
     pub total_bytes: u64,
     /// statvfs's bavail: space available to an unprivileged caller, excluding
     /// reserved blocks. Not a reservation or a per-user quota guarantee.
@@ -68,6 +89,8 @@ pub struct Filesystem {
 }
 
 impl Filesystem {
+    /// Available space as a percentage of the total.
+    ///
     /// None for filesystems without a meaningful total (e.g. some pseudo-fs).
     #[must_use]
     #[allow(clippy::cast_precision_loss)] // A percentage, not an exact count.
@@ -77,15 +100,21 @@ impl Filesystem {
     }
 }
 
+/// A target that could not be probed.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct StorageFailure {
+    /// The target as the caller passed it.
     pub target: StorageTarget,
+    /// The OS or validation error, for humans; not a stable format.
     pub reason: String,
 }
 
+/// Result of one [`inspect_storage`] call.
 #[derive(Debug, Clone, Serialize)]
 pub struct StorageSnapshot {
+    /// Wall-clock time taken before any path was probed.
     pub observed_at: SystemTime,
+    /// One entry per distinct filesystem and read-only view, in first-seen order.
     pub filesystems: Vec<Filesystem>,
     /// Failure to probe is not zero free space and is not a healthy disk.
     pub unavailable: Vec<StorageFailure>,
@@ -219,8 +248,9 @@ fn probe(path: &Path) -> io::Result<Filesystem> {
 }
 
 fn filesystem_kind(path: &std::ffi::CStr) -> (Option<String>, FilesystemBacking) {
-    // SAFETY: statfs is a C output struct; path and output pointers are valid.
+    // SAFETY: statfs is a C output struct with integer and byte-array fields.
     let mut stat: libc::statfs = unsafe { std::mem::zeroed() };
+    // SAFETY: path is NUL-terminated and stat is a valid output pointer.
     if unsafe { libc::statfs(path.as_ptr(), &raw mut stat) } != 0 {
         return (None, FilesystemBacking::Unknown);
     }
