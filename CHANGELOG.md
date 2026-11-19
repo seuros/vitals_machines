@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/seuros/vitals_machines/compare/vitals-machines-v0.2.0...vitals-machines-v0.3.0) (2026-11-19)
+
+
+### Features
+
+* add Recovery::restored and Recovery::last_issued ([8f51983](https://github.com/seuros/vitals_machines/commit/8f51983a793c782316a99dce750169957c931291))
+
 ## [0.2.0](https://github.com/seuros/vitals_machines/compare/vitals-machines-v0.1.0...vitals-machines-v0.2.0) (2026-11-19)
 
 
