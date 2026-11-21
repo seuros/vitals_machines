@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0](https://github.com/seuros/vitals_machines/compare/vitals-machines-v0.3.0...vitals-machines-v0.4.0) (2026-11-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* **probe:** native FreeBSD power, firmware, display and ACPI probes
+
+### Features
+
+* **probe:** native FreeBSD power, firmware, display and ACPI probes ([e651216](https://github.com/seuros/vitals_machines/commit/e6512167503b96353d0bf48d836d7a7800ec2800))
+
 ## [0.3.0](https://github.com/seuros/vitals_machines/compare/vitals-machines-v0.2.0...vitals-machines-v0.3.0) (2026-11-19)
 
 
