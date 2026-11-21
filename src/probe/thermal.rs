@@ -72,6 +72,10 @@ pub struct ThermalInfo {
     /// Absent on other platforms and when host observations are suppressed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub macos: Option<MacosThermalDiagnostics>,
+    /// Raw Android thermal-service observations from this sample. Absent on
+    /// other platforms, and where the service could not be reached.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub android: Option<AndroidThermalDiagnostics>,
 }
 
 /// Preserve the two macOS sources separately so conflicting or process-local
@@ -88,6 +92,18 @@ pub struct MacosThermalDiagnostics {
     pub ns_process_info_thermal_state: isize,
 }
 
+/// What Android's thermal service (`AThermalManager`, NDK) reported.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct AndroidThermalDiagnostics {
+    /// `AThermal_getCurrentThermalStatus`: -1 error, 0 none, 1 light,
+    /// 2 moderate, 3 severe, 4 critical, 5 emergency, 6 shutdown.
+    pub status: i32,
+    /// `AThermal_getThermalHeadroom` with no forecast: 0.0 is no throttling,
+    /// 1.0 is severe throttling. Android 12 and later; `None` where the
+    /// platform has no headroom or would not say.
+    pub headroom: Option<f32>,
+}
+
 pub fn inspect(environment: ExecutionEnvironment) -> ThermalInfo {
     if environment == ExecutionEnvironment::Container {
         return ThermalInfo::default();
@@ -97,7 +113,12 @@ pub fn inspect(environment: ExecutionEnvironment) -> ThermalInfo {
 
 // Generous CPU-sensor sanity bounds, not warning thresholds. Preserve valid
 // zero/subzero readings and overheating; reject sentinel/garbage values.
-#[cfg(any(target_os = "linux", target_os = "freebsd", test))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "android",
+    target_os = "freebsd",
+    test
+))]
 pub fn valid_celsius(value: f64) -> Option<f64> {
     (-100.0..=250.0).contains(&value).then_some(value)
 }

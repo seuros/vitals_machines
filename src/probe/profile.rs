@@ -15,6 +15,8 @@ pub enum FormFactor {
     Server,
     /// Tablet or detachable.
     Tablet,
+    /// Handheld phone, foldables included.
+    Phone,
     /// A recognized chassis that fits none of the above.
     Other,
     /// No evidence, or evidence that names no chassis. Not a desktop.
@@ -32,6 +34,9 @@ pub enum FormFactorEvidence {
     ModelIdentifier,
     /// A heuristic, never used to infer desktop from an absent battery.
     SystemBattery,
+    /// An OS-declared device class, such as Android's
+    /// `ro.build.characteristics`.
+    SystemProperty,
     /// Nothing to go on; the form factor is `Unknown`.
     #[default]
     Unknown,

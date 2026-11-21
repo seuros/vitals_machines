@@ -10,6 +10,8 @@ mod freebsd;
 mod linux;
 #[cfg(any(target_os = "macos", test))]
 mod macos;
+// Process listing for the desktop indexers; Android has none to look for.
+#[cfg_attr(target_os = "android", allow(dead_code))]
 mod process;
 
 /// A failed or unsupported probe is never a successful empty measurement.
@@ -98,6 +100,11 @@ pub fn inspect_indexing(workspace: &Path) -> IndexingSnapshot {
     #[cfg(target_os = "freebsd")]
     {
         freebsd::inspect(snapshot)
+    }
+    // No desktop indexer runs on Android; the storage is the app's own.
+    #[cfg(target_os = "android")]
+    {
+        snapshot
     }
 }
 

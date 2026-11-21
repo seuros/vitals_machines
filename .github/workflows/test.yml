@@ -103,3 +103,20 @@ jobs:
 
       - name: Lint the probes for FreeBSD
         run: cargo clippy --features probe --all-targets --target x86_64-unknown-freebsd -- -D warnings
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+        with:
+          mise_toml: |
+            [tools]
+            rust = { version = "1.99", components = "clippy", targets = "aarch64-linux-android,armv7-linux-androideabi" }
+
+      - name: Lint the probes for Android, 64- and 32-bit
+        run: |
+          cargo clippy --features probe --all-targets --target aarch64-linux-android -- -D warnings
+          cargo clippy --features probe --all-targets --target armv7-linux-androideabi -- -D warnings
+          cargo clippy --all-features --all-targets --target aarch64-linux-android -- -D warnings
+          cargo clippy --all-features --all-targets --target armv7-linux-androideabi -- -D warnings

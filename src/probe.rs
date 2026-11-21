@@ -8,6 +8,8 @@
 //! synchronous I/O: use a blocking worker in async applications. Snapshots are
 //! not atomic or cached; collect again before making a resource decision.
 
+// Shells out for macOS and FreeBSD probes; an Android app has nothing to run.
+#[cfg_attr(target_os = "android", allow(dead_code))]
 mod command;
 mod indexing;
 mod power;
@@ -20,16 +22,22 @@ mod zfs;
 mod sysctl;
 
 // Compile the portable platform readers/parsers on other hosts in tests too.
+#[cfg(any(target_os = "android", test))]
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+mod android;
 #[cfg(any(target_os = "freebsd", test))]
 #[cfg_attr(not(target_os = "freebsd"), allow(dead_code))]
 mod freebsd;
-#[cfg(any(target_os = "linux", test))]
+// Android runs a Linux kernel: its sysfs readers are Linux's.
+#[cfg(any(target_os = "linux", target_os = "android", test))]
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 mod linux;
 #[cfg(any(target_os = "macos", test))]
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod macos;
 
+#[cfg(target_os = "android")]
+use android as platform;
 #[cfg(target_os = "freebsd")]
 use freebsd as platform;
 #[cfg(target_os = "linux")]
@@ -37,8 +45,13 @@ use linux as platform;
 #[cfg(target_os = "macos")]
 use macos as platform;
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "freebsd")))]
-compile_error!("the vitals-machines probe supports Linux, macOS, and FreeBSD");
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "android",
+    target_os = "macos",
+    target_os = "freebsd"
+)))]
+compile_error!("the vitals-machines probe supports Linux, Android, macOS, and FreeBSD");
 
 pub use indexing::{
     IndexerProcess, IndexingObservation, IndexingSnapshot, SpotlightState, inspect_indexing,
@@ -53,8 +66,8 @@ pub use storage::{
     StorageRole, StorageSnapshot, StorageTarget, inspect_storage,
 };
 pub use thermal::{
-    CpuTemperature, MacosThermalDiagnostics, TemperatureKind, TemperatureSource, ThermalInfo,
-    ThermalState,
+    AndroidThermalDiagnostics, CpuTemperature, MacosThermalDiagnostics, TemperatureKind,
+    TemperatureSource, ThermalInfo, ThermalState,
 };
 pub use zfs::{PoolHealth, PoolObservation, ZfsPool, inspect_pool, inspect_pool_for_path};
 

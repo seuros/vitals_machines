@@ -7,7 +7,17 @@ use crate::probe::{
 use std::fs;
 use std::path::Path;
 
-mod thermal;
+pub mod thermal;
+#[cfg(test)]
+pub(super) fn test_device(root: &Path, name: &str, fields: &[(&str, &str)]) -> std::io::Result<()> {
+    let dir = root.join(name);
+    fs::create_dir_all(&dir)?;
+    for (key, value) in fields {
+        fs::write(dir.join(key), value)?;
+    }
+    Ok(())
+}
+
 #[cfg(target_os = "linux")]
 pub use thermal::read as read_thermal;
 
@@ -15,13 +25,13 @@ pub fn detect() -> (MachineProfile, PowerInfo) {
     detect_at(Path::new("/"))
 }
 
-fn text(path: &Path) -> Option<String> {
+pub fn text(path: &Path) -> Option<String> {
     fs::read_to_string(path)
         .ok()
         .map(|value| value.trim().to_owned())
 }
 
-fn boolean(path: &Path) -> Option<bool> {
+pub fn boolean(path: &Path) -> Option<bool> {
     match text(path).as_deref() {
         Some("1") => Some(true),
         Some("0") => Some(false),
@@ -81,7 +91,7 @@ fn detect_at(root: &Path) -> (MachineProfile, PowerInfo) {
     (profile, power)
 }
 
-fn read_power(root: &Path) -> PowerInfo {
+pub fn read_power(root: &Path) -> PowerInfo {
     let Ok(entries) = fs::read_dir(root) else {
         return PowerInfo::default();
     };
@@ -108,42 +118,16 @@ fn read_power(root: &Path) -> PowerInfo {
             continue;
         };
         match kind.as_str() {
-            "Battery" | "UPS" => {
-                let present = boolean(&path.join("present"));
-                let charge_percent = text(&path.join("capacity")).and_then(|value| percent(&value));
-                let state = match text(&path.join("status")).as_deref() {
-                    Some("Charging") => BatteryState::Charging,
-                    Some("Discharging") => BatteryState::Discharging,
-                    Some("Full") => BatteryState::Full,
-                    Some("Not charging") => BatteryState::Idle,
-                    _ => BatteryState::Unknown,
-                };
-                // Some drivers omit `present` but provide live battery data.
-                let present = present.or_else(|| {
-                    (charge_percent.is_some() || state != BatteryState::Unknown).then_some(true)
-                });
-                batteries.push(BatteryInfo {
-                    name: entry.file_name().to_string_lossy().into_owned(),
-                    kind: if kind == "UPS" {
-                        BatteryKind::Ups
-                    } else {
-                        BatteryKind::System
-                    },
-                    present,
-                    charge_percent: if present == Some(false) {
-                        None
-                    } else {
-                        charge_percent
-                    },
-                    state: if present == Some(false) {
-                        BatteryState::Unknown
-                    } else {
-                        state
-                    },
-                });
-            }
-            "Mains" | "USB" | "USB_C" | "USB_PD" | "USB_PD_DRP" | "USB_DCP" | "USB_CDP"
-            | "Wireless" => adapters.push(boolean(&path.join("online"))),
+            "Battery" | "UPS" => batteries.push(battery(
+                &path,
+                entry.file_name().to_string_lossy().into_owned(),
+                if kind == "UPS" {
+                    BatteryKind::Ups
+                } else {
+                    BatteryKind::System
+                },
+            )),
+            kind if adapter(kind) => adapters.push(boolean(&path.join("online"))),
             _ => {}
         }
     }
@@ -164,6 +148,45 @@ fn read_power(root: &Path) -> PowerInfo {
         },
         external_power,
         batteries: complete.then_some(batteries),
+    }
+}
+
+/// A supply `type` that feeds the machine from outside.
+pub fn adapter(kind: &str) -> bool {
+    matches!(
+        kind,
+        "Mains" | "USB" | "USB_C" | "USB_PD" | "USB_PD_DRP" | "USB_DCP" | "USB_CDP" | "Wireless"
+    )
+}
+
+/// One battery's `present`, `capacity` and `status` nodes.
+pub fn battery(path: &Path, name: String, kind: BatteryKind) -> BatteryInfo {
+    let present = boolean(&path.join("present"));
+    let charge_percent = text(&path.join("capacity")).and_then(|value| percent(&value));
+    let state = match text(&path.join("status")).as_deref() {
+        Some("Charging") => BatteryState::Charging,
+        Some("Discharging") => BatteryState::Discharging,
+        Some("Full") => BatteryState::Full,
+        Some("Not charging") => BatteryState::Idle,
+        _ => BatteryState::Unknown,
+    };
+    // Some drivers omit `present` but provide live battery data.
+    let present = present
+        .or_else(|| (charge_percent.is_some() || state != BatteryState::Unknown).then_some(true));
+    BatteryInfo {
+        name,
+        kind,
+        present,
+        charge_percent: if present == Some(false) {
+            None
+        } else {
+            charge_percent
+        },
+        state: if present == Some(false) {
+            BatteryState::Unknown
+        } else {
+            state
+        },
     }
 }
 

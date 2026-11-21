@@ -283,16 +283,25 @@ loop {
 - **`inspect_pool(name)` / `inspect_pool_for_path(path)`** read a zpool's size, allocated and free bytes, capacity percent, health and read-only flag (`ZfsPool::available_percent()` for headroom samples). FreeBSD only, via `/sbin/zpool list -Hp`; elsewhere, or when `zpool` is missing, slow or unreadable, the answer is `Unavailable`, and a pool that is not imported is `NotFound`. Never a healthy pool by default.
 - **`inspect_indexing(workspace)`** reports Spotlight on the workspace's volume and known indexer processes.
 
-| | Linux | macOS | FreeBSD |
-| --- | --- | --- | --- |
-| Form factor | SMBIOS chassis; system-battery fallback | Model identifier; system-battery fallback | Loader SMBIOS chassis (`kenv`); system-battery fallback |
-| Power | sysfs power supplies | `pmset -g batt`, two-second bound | `/dev/acpi` per-battery ioctls, `hw.acpi.acline` |
-| Displays | DRM connector status | CoreGraphics online display list | DRM connector status (`/dev/dri/card*`) |
-| CPU temperature | hwmon (`coretemp`, `k10temp`, `k8temp`, `via_cputemp`) and CPU thermal zones | Unavailable | CPU temperature and Tjmax sysctls |
-| OS thermal state | Unknown | IOPM warnings, `NSProcessInfo` pressure | ACPI thermal-zone flags |
-| Storage | `statvfs` / `statfs` | `statvfs` / `statfs` | `statvfs` / `statfs` |
-| ZFS pool | Unavailable | Unavailable | `zpool list -Hp`, five-second bound |
-| Indexing | Tracker/LocalSearch, Baloo, `updatedb` processes | `mdutil -s`, Spotlight processes | Linux's list plus `recollindex`, `locate.code`/`locate.bigram`, confirmed by `KERN_PROC_PATHNAME` |
+On Android, the optional `android-binder` feature enables an **experimental**
+battery-capacity fallback when sysfs cannot report a percentage. It uses an
+undocumented Binder service and parcel format, not a supported Android API;
+updates or vendor restrictions can break it or change its meaning. Failed or
+out-of-range readings remain unknown. It does not infer the power source or
+battery presence. The synchronous Binder call has no crate-imposed timeout, so
+perform the probe on a worker thread. Apps needing a supported integration can obtain power data
+from Android APIs and use their own values in place of `MachineSnapshot::power`.
+
+| | Linux | macOS | FreeBSD | Android |
+| --- | --- | --- | --- | --- |
+| Form factor | SMBIOS chassis; system-battery fallback | Model identifier; system-battery fallback | Loader SMBIOS chassis (`kenv`); system-battery fallback | `ro.build.characteristics` (`phone`, `tablet`); otherwise unknown |
+| Power | sysfs power supplies | `pmset -g batt`, two-second bound | `/dev/acpi` per-battery ioctls, `hw.acpi.acline` | sysfs `battery` and adapters; denied to apps, so unknown there |
+| Displays | DRM connector status | CoreGraphics online display list | DRM connector status (`/dev/dri/card*`) | Built in for a phone or tablet |
+| CPU temperature | hwmon (`coretemp`, `k10temp`, `k8temp`, `via_cputemp`) and CPU thermal zones | Unavailable | CPU temperature and Tjmax sysctls | CPU thermal zones (`cpu-*`, `cpuss-*`, `BIG`/`MID`/`LITTLE`) where the vendor's SELinux policy allows |
+| OS thermal state | Unknown | IOPM warnings, `NSProcessInfo` pressure | ACPI thermal-zone flags | NDK thermal service status and headroom (Android 11+) |
+| Storage | `statvfs` / `statfs` | `statvfs` / `statfs` | `statvfs` / `statfs` | `statvfs` / `statfs` |
+| ZFS pool | Unavailable | Unavailable | `zpool list -Hp`, five-second bound | Unavailable |
+| Indexing | Tracker/LocalSearch, Baloo, `updatedb` processes | `mdutil -s`, Spotlight processes | Linux's list plus `recollindex`, `locate.code`/`locate.bigram`, confirmed by `KERN_PROC_PATHNAME` | Not probed |
 
 ## The Rules of the Tender
 
@@ -310,7 +319,7 @@ loop {
 ### You Think: "The OS says thermal state normal, so the machine is cool."
 ### Reality: The OS says it is not currently throttling you.
 
-On macOS, "nominal" is also the answer on hardware that does not report thermal pressure at all; only a successful IOPM reading of normal establishes `Normal`. On Linux there is no OS thermal state, and every machine answers `Unknown`. On FreeBSD, `Normal` needs every ACPI thermal zone to clear its warning flags and have a working sensor and trip point. If your policy needs Celsius, read the CPU channels, and decide what an empty list means before the first hot afternoon.
+On macOS, "nominal" is also the answer on hardware that does not report thermal pressure at all; only a successful IOPM reading of normal establishes `Normal`. On Linux there is no OS thermal state, and every machine answers `Unknown`. On Android, the thermal service's none and light both read `Normal`, moderate and severe `Warning`, critical and beyond `Critical`; `thermal.android` keeps the raw status and the headroom (1.0 is where throttling starts). On FreeBSD, `Normal` needs every ACPI thermal zone to clear its warning flags and have a working sensor and trip point. If your policy needs Celsius, read the CPU channels, and decide what an empty list means before the first hot afternoon.
 
 ### You Think: "Recovered means the problem is solved."
 ### Reality: Recovered means the readings held for as long as you asked.

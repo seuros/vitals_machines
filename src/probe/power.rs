@@ -90,12 +90,17 @@ impl PowerInfo {
     }
 }
 
-#[cfg(any(target_os = "linux", target_os = "macos", test))]
+#[cfg(any(target_os = "linux", target_os = "android", target_os = "macos", test))]
 pub fn percent(text: &str) -> Option<u8> {
     text.trim().parse::<u8>().ok().filter(|value| *value <= 100)
 }
 
-#[cfg(any(target_os = "linux", target_os = "freebsd", test))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "android",
+    target_os = "freebsd",
+    test
+))]
 pub fn source_from_supplies(
     external: Option<bool>,
     batteries: Option<&[BatteryInfo]>,

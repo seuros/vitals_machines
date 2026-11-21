@@ -52,12 +52,24 @@ fn read_at(root: &Path) -> ThermalInfo {
             });
         }
     }
+    cpu_temperatures.extend(zones(root, cpu_zone));
+    ThermalInfo {
+        cpu_temperatures,
+        ..ThermalInfo::default()
+    }
+}
+
+/// CPU sensors among `/sys/class/thermal`'s zones, as `is_cpu` names them:
+/// zone types differ by platform (`x86_pkg_temp` on a PC, `cpu-1-0-0` on a
+/// Qualcomm phone).
+pub fn zones(root: &Path, is_cpu: fn(&str) -> bool) -> Vec<CpuTemperature> {
+    let mut found = Vec::new();
     for zone in entries(&root.join("sys/class/thermal")) {
         if index(&zone.file_name().to_string_lossy(), "thermal_zone", "").is_none() {
             continue;
         }
         let path = zone.path();
-        let Some(label) = text(&path.join("type")).filter(|name| cpu_zone(name)) else {
+        let Some(label) = text(&path.join("type")).filter(|name| is_cpu(name)) else {
             continue;
         };
         let critical_celsius = entries(&path)
@@ -71,7 +83,7 @@ fn read_at(root: &Path) -> ThermalInfo {
             })
             .min_by(f64::total_cmp);
         let input = path.join("temp");
-        cpu_temperatures.push(CpuTemperature {
+        found.push(CpuTemperature {
             id: input.to_string_lossy().into_owned(),
             label,
             source: TemperatureSource::ThermalZone,
@@ -81,10 +93,7 @@ fn read_at(root: &Path) -> ThermalInfo {
             critical_celsius,
         });
     }
-    ThermalInfo {
-        cpu_temperatures,
-        ..ThermalInfo::default()
-    }
+    found
 }
 
 fn entries(path: &Path) -> Vec<DirEntry> {

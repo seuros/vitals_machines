@@ -219,6 +219,8 @@ fn probe(path: &Path) -> io::Result<Filesystem> {
     if unsafe { libc::statvfs(c_path.as_ptr(), &raw mut stat) } != 0 {
         return Err(io::Error::last_os_error());
     }
+    // Its width varies by libc: 32 bits on 32-bit Android.
+    #[allow(clippy::cast_lossless)]
     let block_size = stat.f_frsize as u64;
     if block_size == 0 {
         return Err(io::Error::new(
@@ -235,6 +237,7 @@ fn probe(path: &Path) -> io::Result<Filesystem> {
     Ok(Filesystem {
         id: FilesystemId {
             device: metadata.dev(),
+            #[allow(clippy::cast_lossless)]
             filesystem: stat.f_fsid as u64,
         },
         filesystem_type,
@@ -255,8 +258,8 @@ fn filesystem_kind(path: &std::ffi::CStr) -> (Option<String>, FilesystemBacking)
         return (None, FilesystemBacking::Unknown);
     }
     // f_type is a signed word holding unsigned magic numbers; its width varies by libc.
-    #[cfg(target_os = "linux")]
-    #[allow(clippy::cast_sign_loss)]
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    #[allow(clippy::cast_sign_loss, clippy::cast_lossless)]
     let name = match stat.f_type as u64 {
         0x0102_1994 => "tmpfs",
         0x8584_58f6 => "ramfs",
@@ -267,6 +270,8 @@ fn filesystem_kind(path: &std::ffi::CStr) -> (Option<String>, FilesystemBacking)
         0x794c_7630 => "overlay",
         0x6969 => "nfs",
         0x6573_5546 => "fuse",
+        0xf2f5_2010 => "f2fs",
+        0xe0f5_e1e2 => "erofs",
         0x9fa0 => "proc",
         0x6265_6572 => "sysfs",
         _ => return (None, FilesystemBacking::Unknown),
