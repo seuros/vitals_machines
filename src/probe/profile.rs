@@ -1,5 +1,6 @@
 use crate::probe::{BatteryKind, PowerInfo};
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::io::IsTerminal;
 
 /// Chassis class. Says nothing about displays or the current power source.
@@ -103,8 +104,8 @@ pub struct MachineProfile {
     pub form_factor: FormFactor,
     /// What `form_factor` was decided from.
     pub form_factor_evidence: FormFactorEvidence,
-    /// Vendor model: macOS `hw.model`, Linux DMI product name. `None` when
-    /// unreadable, in a container, and always on FreeBSD.
+    /// Vendor model: macOS `hw.model`, Linux DMI product name, FreeBSD SMBIOS
+    /// product name from kenv. `None` when unreadable or in a container.
     pub model: Option<String>,
     /// Whether displays are attached.
     pub displays: DisplayState,
@@ -112,6 +113,27 @@ pub struct MachineProfile {
     pub execution_environment: ExecutionEnvironment,
     /// Session hints from this process's environment.
     pub session: SessionContext,
+    /// Raw FreeBSD driver observations, not evidence of display attachment.
+    /// Absent on other platforms and when host observations are suppressed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub freebsd_acpi: Option<FreebsdAcpiDiagnostics>,
+}
+
+/// Read-only ACPI driver values, independent of chassis or display classification.
+///
+/// Keys are OS-local sysctl names, not stable hardware identifiers. `None` means
+/// enumeration failed or the interface is unavailable; a `None` value means that
+/// leaf could not be read. Unrecognized values are preserved, not normalized.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct FreebsdAcpiDiagnostics {
+    /// `dev.acpi_lid.<unit>.state`: 0 closed, 1 open according to the driver,
+    /// which caches it and assumes open when the firmware query fails. Not
+    /// physical lid position or sensor health.
+    pub driver_lid_states: Option<BTreeMap<String, Option<i32>>>,
+    /// `hw.acpi.video.<output>.active`: 0 inactive, 1 active according to the
+    /// driver. Missing firmware `_DCS` reads active; other failures may read
+    /// inactive. Neither proves attachment or headlessness.
+    pub driver_video_activity: Option<BTreeMap<String, Option<i32>>>,
 }
 
 pub fn classify(

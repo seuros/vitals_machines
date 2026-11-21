@@ -16,7 +16,7 @@ fn temperature_and_tjmax_are_decikelvin_not_celsius() {
         ("dev.cpu.0.temperature", 3232),
         ("dev.cpu.0.coretemp.tjmax", 3732),
     ]);
-    assert_eq!(thermal.state, crate::probe::ThermalState::Unknown);
+    assert_eq!(thermal.state, ThermalState::Unknown);
     assert_eq!(thermal.cpu_temperatures.len(), 1);
     let cpu = &thermal.cpu_temperatures[0];
     assert_eq!(cpu.id, "dev.cpu.0.temperature");
@@ -54,7 +54,7 @@ fn absent_or_invalid_cpu_counts_do_not_trigger_sensor_queries() {
             assert_eq!(name, c"hw.ncpu");
             count
         });
-        assert_eq!(thermal.state, crate::probe::ThermalState::Unknown);
+        assert_eq!(thermal.state, ThermalState::Unknown);
         assert!(thermal.cpu_temperatures.is_empty());
     }
 }
@@ -64,4 +64,75 @@ fn invalid_raw_temperatures_are_unknown() {
     for raw in [-1, 0, i32::MIN, i32::MAX] {
         assert_eq!(decikelvin(raw), None);
     }
+}
+
+fn os_state(zones: Option<&[&str]>, values: &[(&str, i32)]) -> ThermalState {
+    let names = zones.map(|zones| {
+        zones
+            .iter()
+            .map(|zone| CString::new(format!("hw.acpi.thermal.tz{zone}.thermal_flags")).unwrap())
+            .collect::<Vec<_>>()
+    });
+    system_state(names.as_deref(), |name| {
+        let name = name.to_str().ok()?;
+        values
+            .iter()
+            .find_map(|(key, value)| (*key == name).then_some(*value))
+    })
+}
+
+#[test]
+fn acpi_warning_flags_not_measured_celsius_determine_os_severity() {
+    let values = [
+        ("hw.acpi.thermal.tz0.thermal_flags", 0),
+        ("hw.acpi.thermal.tz0.temperature", 3132),
+        ("hw.acpi.thermal.tz0._CRT", 3732),
+    ];
+    assert_eq!(os_state(Some(&["0"]), &values), ThermalState::Normal);
+    assert_eq!(os_state(None, &values), ThermalState::Unknown);
+    assert_eq!(os_state(Some(&[]), &values), ThermalState::Unknown);
+    assert_eq!(os_state(Some(&["0", "2"]), &values), ThermalState::Unknown);
+    for (flag, expected) in [
+        (1, ThermalState::Warning),
+        (4, ThermalState::Critical),
+        (8, ThermalState::Critical),
+        (16, ThermalState::Critical),
+        (17, ThermalState::Critical),
+        (2, ThermalState::Unknown),
+        (-1, ThermalState::Unknown),
+    ] {
+        assert_eq!(
+            os_state(Some(&["0"]), &[("hw.acpi.thermal.tz0.thermal_flags", flag)]),
+            expected,
+        );
+    }
+    assert_eq!(
+        os_state(
+            Some(&["0", "10"]),
+            &[
+                ("hw.acpi.thermal.tz0.thermal_flags", 1),
+                ("hw.acpi.thermal.tz10.thermal_flags", 16),
+            ]
+        ),
+        ThermalState::Critical,
+    );
+}
+
+#[test]
+fn zero_acpi_flags_without_valid_sensor_and_trip_support_are_not_normal() {
+    for (temperature, trip) in [(Some(3132), None), (None, Some(3732)), (Some(0), Some(-1))] {
+        let mut values = vec![("hw.acpi.thermal.tz0.thermal_flags", 0)];
+        if let Some(temperature) = temperature {
+            values.push(("hw.acpi.thermal.tz0.temperature", temperature));
+        }
+        if let Some(trip) = trip {
+            values.push(("hw.acpi.thermal.tz0._CRT", trip));
+        }
+        assert_eq!(os_state(Some(&["0"]), &values), ThermalState::Unknown);
+    }
+    let unrelated = [CString::new("hw.acpi.thermal.polling_rate").unwrap()];
+    assert_eq!(
+        system_state(Some(&unrelated), |_| panic!("unrelated node")),
+        ThermalState::Unknown
+    );
 }

@@ -49,8 +49,8 @@ fn process_matching_uses_basename_not_substring_or_arguments() {
         vec![12, 80, 90, 103]
     );
     assert_eq!(value[1].name, "mds_stores");
-    assert_eq!(
-        value[1].cpu_percent, 123.4,
+    assert!(
+        (value[1].cpu_percent - 123.4).abs() < f64::EPSILON,
         "multicore values may exceed 100"
     );
 }

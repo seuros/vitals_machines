@@ -278,19 +278,19 @@ loop {
 # fn main() {}
 ```
 
-- **`inspect_machine()`** answers form factor, displays, session hints (SSH, graphical), execution environment (container, VM), power and thermals.
+- **`inspect_machine()`** answers model, form factor, displays, session hints (SSH, graphical), execution environment (container, VM), power and thermals. On FreeBSD, `profile.freebsd_acpi` adds the driver's lid states and video-output activity: hints, not proof of lid position or attached displays.
 - **`inspect_storage(&[StorageTarget])`** probes only the paths you pass. Each resolves through symlinks to its filesystem; a future output probes its nearest existing ancestor. Paths sharing a filesystem and read-only view are grouped, free space is never summed across disks, and a probe failure is not zero free space.
 - **`inspect_indexing(workspace)`** reports Spotlight on the workspace's volume and known indexer processes.
 
 | | Linux | macOS | FreeBSD |
 | --- | --- | --- | --- |
-| Form factor | SMBIOS chassis; system-battery fallback | Model identifier; system-battery fallback | System-battery fallback |
-| Power | sysfs power supplies | `pmset -g batt`, two-second bound | ACPI sysctls |
-| Displays | DRM connector status | CoreGraphics online display list | Unknown |
+| Form factor | SMBIOS chassis; system-battery fallback | Model identifier; system-battery fallback | Loader SMBIOS chassis (`kenv`); system-battery fallback |
+| Power | sysfs power supplies | `pmset -g batt`, two-second bound | `/dev/acpi` per-battery ioctls, `hw.acpi.acline` |
+| Displays | DRM connector status | CoreGraphics online display list | DRM connector status (`/dev/dri/card*`) |
 | CPU temperature | hwmon (`coretemp`, `k10temp`, `k8temp`, `via_cputemp`) and CPU thermal zones | Unavailable | CPU temperature and Tjmax sysctls |
-| OS thermal state | Unknown | IOPM warnings, `NSProcessInfo` pressure | Unknown |
+| OS thermal state | Unknown | IOPM warnings, `NSProcessInfo` pressure | ACPI thermal-zone flags |
 | Storage | `statvfs` / `statfs` | `statvfs` / `statfs` | `statvfs` / `statfs` |
-| Indexing | Tracker/LocalSearch, Baloo, `updatedb` processes | `mdutil -s`, Spotlight processes | Unsupported |
+| Indexing | Tracker/LocalSearch, Baloo, `updatedb` processes | `mdutil -s`, Spotlight processes | Linux's list plus `recollindex`, `locate.code`/`locate.bigram`, confirmed by `KERN_PROC_PATHNAME` |
 
 ## The Rules of the Tender
 
@@ -308,7 +308,7 @@ loop {
 ### You Think: "The OS says thermal state normal, so the machine is cool."
 ### Reality: The OS says it is not currently throttling you.
 
-On macOS, "nominal" is also the answer on hardware that does not report thermal pressure at all; only a successful IOPM reading of normal establishes `Normal`. On Linux there is no OS thermal state, and every machine answers `Unknown`. If your policy needs Celsius, read the CPU channels, and decide what an empty list means before the first hot afternoon.
+On macOS, "nominal" is also the answer on hardware that does not report thermal pressure at all; only a successful IOPM reading of normal establishes `Normal`. On Linux there is no OS thermal state, and every machine answers `Unknown`. On FreeBSD, `Normal` needs every ACPI thermal zone to clear its warning flags and have a working sensor and trip point. If your policy needs Celsius, read the CPU channels, and decide what an empty list means before the first hot afternoon.
 
 ### You Think: "Recovered means the problem is solved."
 ### Reality: Recovered means the readings held for as long as you asked.

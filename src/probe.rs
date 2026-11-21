@@ -8,7 +8,6 @@
 //! synchronous I/O: use a blocking worker in async applications. Snapshots are
 //! not atomic or cached; collect again before making a resource decision.
 
-#[cfg(any(target_os = "macos", target_os = "linux", test))]
 mod command;
 mod indexing;
 mod power;
@@ -45,8 +44,8 @@ pub use indexing::{
 };
 pub use power::{BatteryInfo, BatteryKind, BatteryState, PowerInfo, PowerSource};
 pub use profile::{
-    DisplayState, ExecutionEnvironment, FormFactor, FormFactorEvidence, MachineProfile,
-    SessionContext,
+    DisplayState, ExecutionEnvironment, FormFactor, FormFactorEvidence, FreebsdAcpiDiagnostics,
+    MachineProfile, SessionContext,
 };
 pub use storage::{
     Filesystem, FilesystemBacking, FilesystemId, ResolvedStorageTarget, StorageFailure,
