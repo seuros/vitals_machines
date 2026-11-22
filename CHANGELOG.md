@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/seuros/vitals_machines/compare/vitals-machines-v0.4.0...vitals-machines-v0.5.0) (2026-11-22)
+
+
+### Features
+
+* **probe:** ZFS pool probe with size, free space, capacity, health and read-only ([4e75fb4](https://github.com/seuros/vitals_machines/commit/4e75fb40623240554b48a2601f3c9d3343b27bb9))
+
 ## [0.4.0](https://github.com/seuros/vitals_machines/compare/vitals-machines-v0.3.0...vitals-machines-v0.4.0) (2026-11-21)
 
 
