@@ -280,6 +280,7 @@ loop {
 
 - **`inspect_machine()`** answers model, form factor, displays, session hints (SSH, graphical), execution environment (container, VM), power and thermals. On FreeBSD, `profile.freebsd_acpi` adds the driver's lid states and video-output activity: hints, not proof of lid position or attached displays.
 - **`inspect_storage(&[StorageTarget])`** probes only the paths you pass. Each resolves through symlinks to its filesystem; a future output probes its nearest existing ancestor. Paths sharing a filesystem and read-only view are grouped, free space is never summed across disks, and a probe failure is not zero free space.
+- **`inspect_pool(name)` / `inspect_pool_for_path(path)`** read a zpool's size, allocated and free bytes, capacity percent, health and read-only flag (`ZfsPool::available_percent()` for headroom samples). FreeBSD only, via `/sbin/zpool list -Hp`; elsewhere, or when `zpool` is missing, slow or unreadable, the answer is `Unavailable`, and a pool that is not imported is `NotFound`. Never a healthy pool by default.
 - **`inspect_indexing(workspace)`** reports Spotlight on the workspace's volume and known indexer processes.
 
 | | Linux | macOS | FreeBSD |
@@ -290,6 +291,7 @@ loop {
 | CPU temperature | hwmon (`coretemp`, `k10temp`, `k8temp`, `via_cputemp`) and CPU thermal zones | Unavailable | CPU temperature and Tjmax sysctls |
 | OS thermal state | Unknown | IOPM warnings, `NSProcessInfo` pressure | ACPI thermal-zone flags |
 | Storage | `statvfs` / `statfs` | `statvfs` / `statfs` | `statvfs` / `statfs` |
+| ZFS pool | Unavailable | Unavailable | `zpool list -Hp`, five-second bound |
 | Indexing | Tracker/LocalSearch, Baloo, `updatedb` processes | `mdutil -s`, Spotlight processes | Linux's list plus `recollindex`, `locate.code`/`locate.bigram`, confirmed by `KERN_PROC_PATHNAME` |
 
 ## The Rules of the Tender
