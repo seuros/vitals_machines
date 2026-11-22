@@ -170,7 +170,7 @@ impl StorageSnapshot {
     }
 }
 
-fn existing_path(path: &Path) -> io::Result<PathBuf> {
+pub(super) fn existing_path(path: &Path) -> io::Result<PathBuf> {
     if !path.is_absolute() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,

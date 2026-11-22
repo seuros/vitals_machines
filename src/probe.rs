@@ -14,6 +14,7 @@ mod power;
 mod profile;
 mod storage;
 mod thermal;
+mod zfs;
 
 #[cfg(any(target_os = "macos", target_os = "freebsd"))]
 mod sysctl;
@@ -55,6 +56,7 @@ pub use thermal::{
     CpuTemperature, MacosThermalDiagnostics, TemperatureKind, TemperatureSource, ThermalInfo,
     ThermalState,
 };
+pub use zfs::{PoolHealth, PoolObservation, ZfsPool, inspect_pool, inspect_pool_for_path};
 
 use serde::Serialize;
 use std::time::SystemTime;
