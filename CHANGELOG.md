@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.0](https://github.com/seuros/vitals_machines/compare/vitals-machines-v0.5.0...vitals-machines-v0.6.0) (2026-11-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* **probe:** FormFactor gains Phone, FormFactorEvidence gains SystemProperty, and ThermalInfo gains the `android` field; all three are exhaustive.
+
+### Features
+
+* **probe:** Android probes ([b581677](https://github.com/seuros/vitals_machines/commit/b581677d7fec10bd5aefaad8d41290ef5c724933))
+
 ## [0.5.0](https://github.com/seuros/vitals_machines/compare/vitals-machines-v0.4.0...vitals-machines-v0.5.0) (2026-11-22)
 
 
