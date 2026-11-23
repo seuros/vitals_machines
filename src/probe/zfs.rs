@@ -62,10 +62,8 @@ impl ZfsPool {
     ///
     /// None when the pool reports no size.
     #[must_use]
-    #[allow(clippy::cast_precision_loss)] // A percentage, not an exact count.
     pub fn available_percent(&self) -> Option<f64> {
-        (self.size_bytes > 0 && self.free_bytes <= self.size_bytes)
-            .then(|| self.free_bytes as f64 * 100.0 / self.size_bytes as f64)
+        super::storage::available_percent(self.free_bytes, self.size_bytes)
     }
 
     /// Whether the pool is `ONLINE`. Any other state, including an unrecognized

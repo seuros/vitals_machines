@@ -1,14 +1,6 @@
+use super::test_device as supply;
 use super::*;
 use std::io;
-
-fn supply(root: &Path, name: &str, fields: &[(&str, &str)]) -> io::Result<()> {
-    let dir = root.join(name);
-    fs::create_dir_all(&dir)?;
-    for (key, value) in fields {
-        fs::write(dir.join(key), value)?;
-    }
-    Ok(())
-}
 
 #[test]
 fn removed_battery_on_ac_is_still_a_laptop_but_not_battery_powered() -> io::Result<()> {

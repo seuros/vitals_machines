@@ -26,10 +26,10 @@ fn failures_take_precedence_over_measurements() {
     }
     let mut probe = output("");
     probe.stdout = vec![0xff];
-    assert!(matches!(
+    std::assert_matches!(
         validated_text(&probe, "invalid encoding"),
         Err(Error::Unavailable(_))
-    ));
+    );
 }
 
 #[test]
@@ -45,11 +45,9 @@ fn malformed_tables_are_not_empty_measurements() {
         "5 0.1 ",
         "oops 0.1 indexer",
     ] {
-        assert!(
-            matches!(
-                processes(&output(text), |_| true),
-                Err(Error::Unavailable(_))
-            ),
+        std::assert_matches!(
+            processes(&output(text), |_| true),
+            Err(Error::Unavailable(_)),
             "{text:?}"
         );
     }

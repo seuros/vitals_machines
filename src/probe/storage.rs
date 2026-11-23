@@ -93,11 +93,14 @@ impl Filesystem {
     ///
     /// None for filesystems without a meaningful total (e.g. some pseudo-fs).
     #[must_use]
-    #[allow(clippy::cast_precision_loss)] // A percentage, not an exact count.
     pub fn available_percent(&self) -> Option<f64> {
-        (self.total_bytes > 0 && self.available_bytes <= self.total_bytes)
-            .then(|| self.available_bytes as f64 * 100.0 / self.total_bytes as f64)
+        available_percent(self.available_bytes, self.total_bytes)
     }
+}
+
+#[allow(clippy::cast_precision_loss)] // A percentage, not an exact count.
+pub(super) fn available_percent(available: u64, total: u64) -> Option<f64> {
+    (total > 0 && available <= total).then(|| available as f64 * 100.0 / total as f64)
 }
 
 /// A target that could not be probed.

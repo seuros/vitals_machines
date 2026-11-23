@@ -59,8 +59,9 @@ fn garbage_is_unavailable_never_a_pool() {
         "other\t100\t1\t1\t1\tONLINE\toff\n",
         "zroot\t100\t1\t1\t1\tONLINE\toff\nzroot\t100\t1\t1\t1\tONLINE\toff\n",
     ] {
-        assert!(
-            matches!(parse_pool("zroot", text), PoolObservation::Unavailable(_)),
+        std::assert_matches!(
+            parse_pool("zroot", text),
+            PoolObservation::Unavailable(_),
             "{text:?}"
         );
     }
@@ -72,10 +73,10 @@ fn missing_pool_is_distinct_from_other_failures() {
         failure("cannot open 'nosuch': no such pool\n"),
         PoolObservation::NotFound
     );
-    assert!(matches!(
+    std::assert_matches!(
         failure("internal error: failed to initialize ZFS library\n"),
         PoolObservation::Unavailable(_)
-    ));
+    );
 }
 
 #[test]
@@ -90,9 +91,9 @@ fn dataset_names_resolve_to_their_pool() {
 #[test]
 fn hostile_pool_names_never_reach_a_command() {
     for name in ["", "-a", "-o", " zroot", "zr oot", "zroot\n", "1pool", "é"] {
-        assert!(
-            matches!(inspect_pool(name), PoolObservation::Unavailable(reason)
-                if reason.starts_with("pool names")),
+        std::assert_matches!(
+            inspect_pool(name), PoolObservation::Unavailable(reason)
+                if reason.starts_with("pool names"),
             "{name:?}"
         );
     }
@@ -101,14 +102,11 @@ fn hostile_pool_names_never_reach_a_command() {
 #[cfg(not(target_os = "freebsd"))]
 #[test]
 fn other_platforms_answer_unavailable() {
-    assert!(matches!(
-        inspect_pool("zroot"),
-        PoolObservation::Unavailable(_)
-    ));
-    assert!(matches!(
+    std::assert_matches!(inspect_pool("zroot"), PoolObservation::Unavailable(_));
+    std::assert_matches!(
         inspect_pool_for_path(Path::new("/")),
         PoolObservation::Unavailable(_)
-    ));
+    );
 }
 
 #[cfg(target_os = "freebsd")]
@@ -123,7 +121,7 @@ fn live_pool_matches_its_backing_path() {
         assert!(pool.size_bytes > 0);
     } else {
         // Not every FreeBSD host boots from ZFS.
-        assert!(matches!(by_path, PoolObservation::Unavailable(_)));
+        std::assert_matches!(by_path, PoolObservation::Unavailable(_));
     }
     assert_eq!(inspect_pool("vitalsnosuchpool"), PoolObservation::NotFound);
 }

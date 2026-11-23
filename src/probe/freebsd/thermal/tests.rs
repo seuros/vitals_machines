@@ -1,12 +1,14 @@
 use super::*;
 
 fn from_values(values: &[(&str, i32)]) -> ThermalInfo {
-    read_with(|name| {
-        let name = name.to_str().ok()?;
-        values
-            .iter()
-            .find_map(|(key, value)| (*key == name).then_some(*value))
-    })
+    read_with(|name| lookup(values, name))
+}
+
+fn lookup(values: &[(&str, i32)], name: &CStr) -> Option<i32> {
+    let name = name.to_str().ok()?;
+    values
+        .iter()
+        .find_map(|(key, value)| (*key == name).then_some(*value))
 }
 
 #[test]
@@ -73,12 +75,7 @@ fn os_state(zones: Option<&[&str]>, values: &[(&str, i32)]) -> ThermalState {
             .map(|zone| CString::new(format!("hw.acpi.thermal.tz{zone}.thermal_flags")).unwrap())
             .collect::<Vec<_>>()
     });
-    system_state(names.as_deref(), |name| {
-        let name = name.to_str().ok()?;
-        values
-            .iter()
-            .find_map(|(key, value)| (*key == name).then_some(*value))
-    })
+    system_state(names.as_deref(), |name| lookup(values, name))
 }
 
 #[test]

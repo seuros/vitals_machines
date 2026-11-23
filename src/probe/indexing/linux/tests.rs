@@ -67,8 +67,8 @@ fn inaccessible_candidates_fail_but_exited_candidates_are_skipped() {
             cpu_percent: 0.0,
         }])
     );
-    assert!(matches!(
+    std::assert_matches!(
         processes(&probe, |_| Err(io::ErrorKind::InvalidData.into())),
         Err(Error::Unavailable(_))
-    ));
+    );
 }

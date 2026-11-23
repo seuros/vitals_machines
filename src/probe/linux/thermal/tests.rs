@@ -1,13 +1,5 @@
 use super::*;
-
-fn device(root: &Path, name: &str, fields: &[(&str, &str)]) -> io::Result<()> {
-    let dir = root.join(name);
-    fs::create_dir_all(&dir)?;
-    for (key, value) in fields {
-        fs::write(dir.join(key), value)?;
-    }
-    Ok(())
-}
+use crate::probe::linux::test_device as device;
 
 #[test]
 fn only_identified_cpu_channels_are_reported() -> io::Result<()> {

@@ -79,7 +79,7 @@ fn denied_or_failed_candidates_never_become_partial_success() {
         );
         match kind {
             io::ErrorKind::PermissionDenied => assert_eq!(result, Err(Error::PermissionDenied)),
-            _ => assert!(matches!(result, Err(Error::Unavailable(_)))),
+            _ => std::assert_matches!(result, Err(Error::Unavailable(_))),
         }
     }
 }
@@ -108,20 +108,20 @@ fn exited_candidates_are_skipped_but_empty_tables_are_not_measurements() {
         Ok(vec![])
     );
     for text in ["", ",pcpu=,comm=\n1\n", "1 0.0 locate.code\ntruncated"] {
-        assert!(matches!(
+        std::assert_matches!(
             processes(&output(text), |_| unreachable!(), deadline()),
             Err(Error::Unavailable(_))
-        ));
+        );
     }
 }
 
 #[test]
 fn candidate_and_time_budgets_fail_instead_of_truncating() {
     let probe = output(&"1 0.0 locate.code\n".repeat(CANDIDATE_LIMIT + 1));
-    assert!(matches!(
+    std::assert_matches!(
         processes(&probe, |_| unreachable!(), deadline()),
         Err(Error::Unavailable(_))
-    ));
+    );
     let probe = output("1 0.0 locate.code\n");
     assert_eq!(
         processes(&probe, |_| unreachable!(), Instant::now()),
